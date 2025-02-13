@@ -27,7 +27,8 @@
 uint32_t last_time=0,last_time2=0;
 ssd1306_t ssd; // Inicializa a estrutura do display
 bool leds_ativos=1,cor=1;
-uint8_t teste1,teste2; //O propósito principal dessas variáveis é facilitar a depuração
+uint8_t valor_y,valor_x; //O propósito principal dessas variáveis é facilitar a depuração
+uint16_t vry_value,vrx_value;
 
 uint pwm_init_gpio(uint gpio, uint wrap) {
   gpio_set_function(gpio, GPIO_FUNC_PWM);
@@ -38,6 +39,35 @@ uint pwm_init_gpio(uint gpio, uint wrap) {
   pwm_set_enabled(slice_num, true);  
   return slice_num;  
 }
+
+uint16_t mapear(uint16_t value){
+ uint16_t aux = abs(2048-value);
+ if(aux<=256) return 0;
+ for(int i=512;i<4096;i+=256){
+  if(aux<=i) return i-256;
+ }
+ return 4096;
+ }
+
+ uint16_t mapear_quadrado(uint16_t value,bool y){
+  int valor, i;
+   if(y){
+    printf("Value = %u\n",value);
+    if(value<10) return 4;
+    if(value > 3619) return -61;
+    if(value<470) return -13;
+    for(i=256,valor=0;i<4096;i+=256,valor+=4){
+      printf("Value = %d\n",-valor-5);
+     if(value<=i) return -valor-5;
+    }
+    return 52;
+   }
+   if(value<10) return 2;
+   for(i=256,valor=0;i<4096;i+=256,valor+=8){
+    if(value<=i) return valor;
+   }
+   return 115;
+  }
 
 //Rotina de interrupção
 void interrupt(uint gpio, uint32_t events)
@@ -52,7 +82,7 @@ void interrupt(uint gpio, uint32_t events)
         cor = !cor;
         ssd1306_fill(&ssd, !cor);
         ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor);
-        ssd1306_draw_square(&ssd,teste2,teste1);
+        ssd1306_draw_square(&ssd,mapear_quadrado(vrx_value,0),mapear_quadrado(vry_value,1));
         ssd1306_send_data(&ssd);
         gpio_put(GREEN,!gpio_get(GREEN));
       }
@@ -109,61 +139,33 @@ int main()
   while (true)
   {
    adc_select_input(0);
-   uint16_t vry_value = adc_read();
+   vry_value = adc_read();
    adc_select_input(1); 
-   uint16_t vrx_value = adc_read();
+   vrx_value = adc_read();
    
    
    //O .0 é importante pra indicar que quero um numero fracionario (Caso contrario resulta em 0)
    //O 120 serve pra compensar o fato do display ter eixo Y com sentido pra baixo e o joystick
    //ter o eixo y com sentido pra cima
-   teste1=56-(uint8_t)round(56*(vry_value/4095.0));
-   teste2=(uint8_t)round(120*(vrx_value/4095.0));
+   valor_y=56-(uint8_t)round(56*(vry_value/4095.0));
+   valor_x=(uint8_t)round(120*(vrx_value/4095.0));
 
    if(leds_ativos){
-    if(teste2 >=54 && teste2 <=60)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
-    red_level=0;
-    else if(teste2>60){
-    red_level= (uint16_t)floor(2.0*(vrx_value-2050));
-    if(red_level>=4072) red_level=4096;
-    } else{//Caso o Joystick esteja sendo empurrado pra esquerda (<54)
-      //red_level=4096-vrx_value;
-      red_level=(uint16_t)floor(2.5*(1680-vrx_value));
-      if(red_level>4096) red_level=4096;
-    }
-    pwm_set_gpio_level(RED,red_level);
-
-
-    if(teste1 >=29 && teste1 <=31)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
-    blue_level=0;
-    else if(teste1<29){
-    blue_level= (uint16_t)floor(2.0*(vry_value-2050));
-    if(blue_level>=4072) blue_level=4096;
-    } else{//Caso o Joystick esteja sendo empurrado pra esquerda (<54)
-      blue_level=(uint16_t)floor(2.5*(1680-vry_value));
-      if(blue_level>4096) blue_level=4096;
-    }
-    pwm_set_gpio_level(BLUE,blue_level);
+    pwm_set_gpio_level(RED,mapear(vrx_value));
+    pwm_set_gpio_level(BLUE,mapear(vry_value));
   }
-
-   //Coloca limites maximos e minimos pra movimentação do quadrado
-   if(teste1 < 4) teste1=4;
-   else if(teste1 > 52) teste1=52;
-
-   if(teste2 > 115) teste2=115;
-   else if(teste2 < 2) teste2=2;
    
    current_time = to_ms_since_boot(get_absolute_time());
    if(current_time - last_time >= 1000){
    //printf("red_level: %u\n",red_level);
-   printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
+   //printf("valor em y: %u\nvalor em x: %u\n\n",valor_y,valor_x);
    //printf("blue_level: %u\n",blue_level);
    //printf("valor em vry: %u\nvalor em vrx: %u\n\n",vry_value,vrx_value);
     last_time=current_time;
    }
    ssd1306_fill(&ssd, !cor); // Limpa o display
    ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
-   ssd1306_draw_square(&ssd,teste2,teste1);
+   ssd1306_draw_square(&ssd,mapear_quadrado(vrx_value,0),mapear_quadrado(vry_value,1));
    ssd1306_send_data(&ssd);
    sleep_ms(10);
   }
