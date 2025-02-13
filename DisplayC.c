@@ -1,16 +1,3 @@
-/*
- * Por: Wilton Lacerda Silva
- *    Comunicação serial com I2C
- *  
- * Uso da interface I2C para comunicação com o Display OLED
- * 
- * Estudo da biblioteca ssd1306 com PicoW na Placa BitDogLab.
- *  
- * Este programa escreve uma mensagem no display OLED.
- * 
- * 
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -42,9 +29,11 @@
 #define VRX_PIN 26   
 #define VRY_PIN 27   
 #define JOYSTICK_BUTTON 22
+#define ADC_MEDIO 2048//Infelizmente esse não é o valor médio na minha placa
 
 uint32_t last_time=0;
 ssd1306_t ssd; // Inicializa a estrutura do display
+bool leds_ativos=1;
 char c;
 
 uint pwm_init_gpio(uint gpio, uint wrap) {
@@ -97,7 +86,8 @@ void interrupt(uint gpio, uint32_t events)
 int main()
 {
   uint8_t teste1,teste2; //O  propósito principal dessa variável é facilitar a depuração
-  uint pwm_wrap = 4096;
+  uint16_t red_level,blue_level;
+  //uint pwm_wrap = 4096;
   uint32_t current_time;
   // I2C Initialisation. Using it at 400Khz.
   i2c_init(I2C_PORT, 400 * 1000);
@@ -143,8 +133,8 @@ int main()
     gpio_set_dir(BUTTON_B, GPIO_IN); // Configura o pino como entrada
     gpio_pull_up(BUTTON_B);
 
-    pwm_init_gpio(RED, pwm_wrap);
-    pwm_init_gpio(BLUE, pwm_wrap); 
+    pwm_init_gpio(RED, 4096);
+    pwm_init_gpio(BLUE, 4096); 
 
     //Só é possivel ter uma unica função de interrupção
     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
@@ -163,8 +153,8 @@ int main()
    //ssd1306_draw_char(&ssd,'A',58,32);
    current_time = to_ms_since_boot(get_absolute_time());
    if(current_time - last_time >= 1000){
-   //printf("vry: %u\n",vry_value);
-   printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
+   printf("red_level: %u\n",red_level);
+   //printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
     last_time=current_time;
    }
    //O .0 é importante pra indicar que quero um numero fracionario (Caso contrario resulta em 0)
@@ -176,9 +166,15 @@ int main()
    if(teste1 < 37) teste1=37;
    else if(teste1 > 87) teste1=87;
 
+   if(teste2 >=54 && teste2 <=60)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
+   red_level=0;
+   else
+   red_level= (uint16_t)teste2-54;
+   //if(red_level>4095) red_level=0;
    //if(teste2 >= 57 && teste2 < 59)teste2=58;
 
    ssd1306_draw_square(&ssd,teste2,teste1-34); //O -34 é pra compensar o drift
+   pwm_set_gpio_level(RED,red_level);
    ssd1306_send_data(&ssd);
    sleep_ms(10);
   }
