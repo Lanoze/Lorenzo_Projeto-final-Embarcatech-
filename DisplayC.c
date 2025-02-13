@@ -31,10 +31,10 @@
 #define JOYSTICK_BUTTON 22
 #define ADC_MEDIO 2048//Infelizmente esse não é o valor médio na minha placa
 
-uint32_t last_time=0;
+uint32_t last_time=0,last_time2=0;
 ssd1306_t ssd; // Inicializa a estrutura do display
-bool leds_ativos=1;
-char c;
+bool leds_ativos=1,cor=1;
+uint8_t teste1,teste2; //O  propósito principal dessa variável é facilitar a depuração
 
 uint pwm_init_gpio(uint gpio, uint wrap) {
   gpio_set_function(gpio, GPIO_FUNC_PWM);
@@ -52,40 +52,27 @@ void interrupt(uint gpio, uint32_t events)
     // Obtem o tempo atual em microssegundos
     uint32_t current_time = to_us_since_boot(get_absolute_time());
     // Verifica se passou tempo suficiente desde o último evento
-    if (current_time - last_time > 300000) // 300 ms de debouncing
+    if (current_time - last_time2 > 300000) // 300 ms de debouncing
     {
-      bool ligou;
-      last_time=current_time;
-      ssd1306_fill(&ssd, 0);
-      ssd1306_draw_char(&ssd,c,58,32);
-      if(gpio==BUTTON_B){//Verifica se foi o botao B (incremento) ou o botao A (decremento)
-        ligou=gpio_get(BLUE);
-        gpio_put(BLUE,!gpio_get(BLUE));
-        if(!ligou){
-         puts("LED azul ligado!");
-        }
-        else{
-         puts("LED azul desligado!");
-        }
-      }else{
-        ligou=gpio_get(GREEN);
+      last_time2=current_time;
+      if(gpio == JOYSTICK_BUTTON){
+        ssd1306_fill(&ssd, 0);
+        ssd1306_rect(&ssd, 3, 3, 122, 58, 0, 1);
+        ssd1306_draw_square(&ssd,teste2,teste1);
+        ssd1306_send_data(&ssd);
         gpio_put(GREEN,!gpio_get(GREEN));
-        if(!ligou){
-         puts("LED verde ligado!");
-        }
-        else{
-         puts("LED verde desligado!");
-        }
       }
-      ssd1306_draw_string(&ssd, "lorem", 5, 10);
-      ssd1306_rect(&ssd, 3, 3, 122, 58, 1, 0);
-      ssd1306_send_data(&ssd);
+      else{
+       leds_ativos= (!leds_ativos);
+       pwm_set_gpio_level(RED,0);
+       pwm_set_gpio_level(BLUE,0);
+       printf("leds_ativos = %d\n",leds_ativos);
+      }
     }
 }
 
 int main()
 {
-  uint8_t teste1,teste2; //O  propósito principal dessa variável é facilitar a depuração
   uint16_t red_level,blue_level;
   //uint pwm_wrap = 4096;
   uint32_t current_time;
@@ -113,14 +100,6 @@ int main()
 
     stdio_init_all();
 
-    gpio_init(RED);              // Inicializa o pino do LED
-    gpio_set_dir(RED, GPIO_OUT); // Configura o pino como saida
-    gpio_put(RED,0);
-
-    gpio_init(BLUE);              
-    gpio_set_dir(BLUE, GPIO_OUT);
-    gpio_put(BLUE,0);
-
     gpio_init(GREEN);              
     gpio_set_dir(GREEN, GPIO_OUT);
     gpio_put(GREEN,0);
@@ -137,7 +116,7 @@ int main()
     pwm_init_gpio(BLUE, 4096); 
 
     //Só é possivel ter uma unica função de interrupção
-    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+    gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
     gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &interrupt);
 
   //bool cor = true;
@@ -151,30 +130,51 @@ int main()
    ssd1306_fill(&ssd, 1); // Limpa o display
    ssd1306_rect(&ssd, 3, 3, 122, 58, 0, 1); // Desenha um retângulo
    //ssd1306_draw_char(&ssd,'A',58,32);
-   current_time = to_ms_since_boot(get_absolute_time());
-   if(current_time - last_time >= 1000){
-   printf("red_level: %u\n",red_level);
+   //current_time = to_ms_since_boot(get_absolute_time());
+   //if(current_time - last_time >= 1000){
+   //printf("red_level: %u\n",red_level);
    //printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
-    last_time=current_time;
-   }
+   //printf("blue_level: %u\n",blue_level);
+    //last_time=current_time;
+   //}
+
+   
    //O .0 é importante pra indicar que quero um numero fracionario (Caso contrario resulta em 0)
    //O 120 serve pra compensar o fato do display ter eixo Y com sentido pra baixo e o joystick
    //ter o eixo y com sentido pra cima
-   teste1=120-(uint8_t)round(120*(vry_value/4095.0));
+   teste1=120-(uint8_t)round(56*(vry_value/4095.0));//Era pra ser 55, mas deixa quieto
    teste2=(uint8_t)round(120*(vrx_value/4095.0));
-   //Coloca um limite máximo e mínimo
-   if(teste1 < 37) teste1=37;
-   else if(teste1 > 87) teste1=87;
 
-   if(teste2 >=54 && teste2 <=60)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
-   red_level=0;
-   else
-   red_level= (uint16_t)teste2-54;
-   //if(red_level>4095) red_level=0;
-   //if(teste2 >= 57 && teste2 < 59)teste2=58;
 
-   ssd1306_draw_square(&ssd,teste2,teste1-34); //O -34 é pra compensar o drift
-   pwm_set_gpio_level(RED,red_level);
+
+  if(leds_ativos){
+    if(teste2 >=54 && teste2 <=60)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
+    red_level=0;
+    else if(teste2>60){
+    red_level= (uint16_t)floor(2.0*(vrx_value-2050));//Equivalente ao 54 em teste2
+    if(red_level>=4072) red_level=4096;
+    } else{//Caso o Joystick esteja sendo empurrado pra esquerda (<54)
+      //red_level=4096-vrx_value;
+      red_level=(uint16_t)floor(2.5*(1680-vrx_value));
+      if(red_level>4096) red_level=4096;
+    }
+    pwm_set_gpio_level(RED,red_level);
+
+
+    if(teste1 >=93 && teste1 <=96)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
+    blue_level=0;
+    else if(teste1<93){
+    blue_level= (uint16_t)floor(2.0*(vry_value-2050));//Equivalente ao 54 em teste2
+    if(blue_level>=4072) blue_level=4096;
+    } else{//Caso o Joystick esteja sendo empurrado pra esquerda (<54)
+      //red_level=4096-vrx_value;
+      blue_level=(uint16_t)floor(2.5*(1680-vry_value));
+      if(blue_level>4096) blue_level=4096;
+    }
+    pwm_set_gpio_level(BLUE,blue_level);
+  }
+
+   ssd1306_draw_square(&ssd,teste2,teste1); //O -34 é pra compensar o drift
    ssd1306_send_data(&ssd);
    sleep_ms(10);
   }
