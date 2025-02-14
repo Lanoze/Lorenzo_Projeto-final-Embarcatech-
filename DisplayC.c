@@ -52,13 +52,14 @@ uint16_t mapear(uint16_t value){
  uint16_t mapear_quadrado(uint16_t value,bool y){
   int valor, i;
    if(y){
-    printf("Value = %u\n",value);
+    //printf("Value = %u\n",value);
     if(value<10) return 4;
     if(value > 3619) return -61;
     if(value<470) return -13;
     for(i=256,valor=0;i<4096;i+=256,valor+=4){
-      printf("Value = %d\n",-valor-5);
-     if(value<=i) return -valor-5;
+     // printf("Value = %d\n",-valor-5);
+     if(value<=i) return -valor-8;//Dessa forna, conforme o valor lido aumenta, o retorno diminui, pra
+     //compensar o fato do joystick e o display terem eixo Y com sentidos opostos
     }
     return 52;
    }
@@ -96,7 +97,7 @@ void interrupt(uint gpio, uint32_t events)
 }
 
 int main()
-{
+{ int testex,testey;
   uint16_t red_level,blue_level;
   uint32_t current_time;
   i2c_init(I2C_PORT, 400 * 1000);
@@ -154,18 +155,20 @@ int main()
     pwm_set_gpio_level(RED,mapear(vrx_value));
     pwm_set_gpio_level(BLUE,mapear(vry_value));
   }
-   
+   ssd1306_fill(&ssd, !cor); // Limpa o display
+   ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
+   ssd1306_draw_square(&ssd,testex=mapear_quadrado(vrx_value,0),testey=mapear_quadrado(vry_value,1));
+
    current_time = to_ms_since_boot(get_absolute_time());
    if(current_time - last_time >= 1000){
    //printf("red_level: %u\n",red_level);
    //printf("valor em y: %u\nvalor em x: %u\n\n",valor_y,valor_x);
    //printf("blue_level: %u\n",blue_level);
    //printf("valor em vry: %u\nvalor em vrx: %u\n\n",vry_value,vrx_value);
+   printf("testex: %d\ntestey: %d\n\n",testex,testey);
     last_time=current_time;
    }
-   ssd1306_fill(&ssd, !cor); // Limpa o display
-   ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
-   ssd1306_draw_square(&ssd,mapear_quadrado(vrx_value,0),mapear_quadrado(vry_value,1));
+
    ssd1306_send_data(&ssd);
    sleep_ms(10);
   }
