@@ -27,7 +27,7 @@
 uint32_t last_time=0,last_time2=0;
 ssd1306_t ssd; // Inicializa a estrutura do display
 bool leds_ativos=1,cor=1;
-uint8_t teste1,teste2; //O propósito principal dessas variáveis é facilitar a depuração
+uint8_t teste1,teste2;
 
 uint pwm_init_gpio(uint gpio, uint wrap) {
   gpio_set_function(gpio, GPIO_FUNC_PWM);
@@ -139,7 +139,7 @@ int main()
     else if(teste1<29){
     blue_level= (uint16_t)floor(2.0*(vry_value-2050));
     if(blue_level>=4072) blue_level=4096;
-    } else{//Caso o Joystick esteja sendo empurrado pra esquerda (<54)
+    } else{//Caso o Joystick esteja sendo empurrado pra baixo (<54)
       blue_level=(uint16_t)floor(2.5*(1680-vry_value));
       if(blue_level>4096) blue_level=4096;
     }
@@ -153,14 +153,14 @@ int main()
    if(teste2 > 115) teste2=115;
    else if(teste2 < 2) teste2=2;
    
-   current_time = to_ms_since_boot(get_absolute_time());
-   if(current_time - last_time >= 1000){
+   //current_time = to_ms_since_boot(get_absolute_time());
+   //if(current_time - last_time >= 1000){
    //printf("red_level: %u\n",red_level);
-   printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
+   //printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
    //printf("blue_level: %u\n",blue_level);
    //printf("valor em vry: %u\nvalor em vrx: %u\n\n",vry_value,vrx_value);
-    last_time=current_time;
-   }
+   // last_time=current_time;
+   //}
    ssd1306_fill(&ssd, !cor); // Limpa o display
    ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
    ssd1306_draw_square(&ssd,teste2,teste1);
