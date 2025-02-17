@@ -139,7 +139,7 @@ int main()
     else if(teste1<29){
     blue_level= (uint16_t)floor(2.0*(vry_value-2050));
     if(blue_level>=4072) blue_level=4096;
-    } else{//Caso o Joystick esteja sendo empurrado pra baixo (<54)
+    } else{//Caso o Joystick esteja sendo empurrado pra baixo
       blue_level=(uint16_t)floor(2.5*(1680-vry_value));
       if(blue_level>4096) blue_level=4096;
     }
