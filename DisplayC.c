@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
@@ -26,8 +27,36 @@
 
 uint32_t last_time=0,last_time2=0;
 ssd1306_t ssd; // Inicializa a estrutura do display
-bool leds_ativos=1,cor=1;
+bool leds_ativos=1,cor=1,pressed=0;
 uint8_t teste1,teste2;
+uint8_t rec_pos=0; //Vai de 0 a 2
+uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
+uint8_t selected=0; //0=Cronometro, 1=Temporizador, 2=Ajustar hora, 3=Alarme, 4 ou mais=Inválido
+
+void draw_options();
+void cronometro();
+void temporizador();
+
+//Rotina de interrupção
+void interrupt(uint gpio, uint32_t events)
+{
+    // Obtem o tempo atual em microssegundos
+    uint32_t current_time = to_us_since_boot(get_absolute_time());
+    // Verifica se passou tempo suficiente desde o último evento
+    if (current_time - last_time2 > 300000) // 300 ms de debouncing
+    {
+      last_time2=current_time;
+      if(gpio == BUTTON_B){
+        puts("BUTTON B Click");
+        pressed=1;
+     }
+     else{ //JOYSTICK_BUTTON
+      puts("JOYSTICK Click");
+      selected=1;
+      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+     }
+    }
+}
 
 uint pwm_init_gpio(uint gpio, uint wrap) {
   gpio_set_function(gpio, GPIO_FUNC_PWM);
@@ -39,30 +68,83 @@ uint pwm_init_gpio(uint gpio, uint wrap) {
   return slice_num;  
 }
 
-//Rotina de interrupção
-void interrupt(uint gpio, uint32_t events)
-{
-    // Obtem o tempo atual em microssegundos
-    uint32_t current_time = to_us_since_boot(get_absolute_time());
-    // Verifica se passou tempo suficiente desde o último evento
-    if (current_time - last_time2 > 300000) // 300 ms de debouncing
-    {
-      last_time2=current_time;
-      if(gpio == JOYSTICK_BUTTON){
-        cor = !cor;
-        ssd1306_fill(&ssd, !cor);
-        ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor);
-        ssd1306_draw_square(&ssd,teste2,teste1);
-        ssd1306_send_data(&ssd);
-        gpio_put(GREEN,!gpio_get(GREEN));
+void cronometro(){
+  selected=0; //Vai ser usada pra determinar quando sair da função
+  ssd1306_fill(&ssd, 0);
+  //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+  ssd1306_draw_string(&ssd,"CRONOS",30,0);
+  ssd1306_send_data(&ssd);
+  
+  while(1){
+  if(selected == 1){
+   selected=0;
+   //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
+   return;
+  }
+  sleep_ms(50);
+ }
+}
+
+void temporizador(){
+  selected=0; //Vai ser usada pra determinar quando sair da função
+  ssd1306_fill(&ssd, 0);
+  //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+  ssd1306_draw_string(&ssd,"TEMPORIZADOR",30,0);
+  ssd1306_send_data(&ssd);
+  
+  while(1){
+  if(selected == 1){
+   selected=0;
+   //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
+   return;
+  }
+  sleep_ms(50);
+ }
+}
+
+void draw_options(){
+  ssd1306_fill(&ssd, 0);
+  if(rec_pos != 0)
+  ssd1306_draw_string(&ssd,opt_list[inicio_display],achar_coordenadas_X(opt_list[inicio_display]),1);
+  if(rec_pos != 1)
+  ssd1306_draw_string(&ssd,opt_list[inicio_display+1],achar_coordenadas_X(opt_list[inicio_display+1]),27);
+  if(rec_pos != 2)
+  ssd1306_draw_string(&ssd,opt_list[inicio_display+2],achar_coordenadas_X(opt_list[inicio_display+2]),54);
+
+  draw_background_rectangle(&ssd,rec_pos,selected);
+  ssd1306_send_data(&ssd);
+}
+
+void comando_joystick(uint16_t y){
+ uint16_t current_time = to_ms_since_boot(get_absolute_time());
+ if(current_time-last_time>=200){
+    if(y>=3500){
+      last_time=current_time;
+      if(rec_pos<=0){
+        rec_pos=0;
+        if(inicio_display>0)
+        inicio_display--;
       }
-      else{
-       leds_ativos= (!leds_ativos);
-       pwm_set_gpio_level(RED,0);
-       pwm_set_gpio_level(BLUE,0);
-       printf("leds_ativos = %d\n",leds_ativos);
-      }
+      else rec_pos--;
+
+     if(selected <= 0) selected=0;
+     else selected--;
+     draw_options();
     }
+    else if(y<=700){
+      last_time=current_time;
+      if(rec_pos >= 2){
+      rec_pos=2;
+      if(inicio_display<1)
+      inicio_display++;
+    }
+      else rec_pos++;
+
+      if(selected >= 3) selected=3;
+     else selected++;
+     draw_options();
+    }
+  }
 }
 
 int main()
@@ -102,69 +184,53 @@ int main()
     pwm_init_gpio(RED, 4096);
     pwm_init_gpio(BLUE, 4096); 
 
-    //Só é possivel ter uma unica função de interrupção
-    gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
-    gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &interrupt);
 
+    //A partir daqui começa meu projeto final
+    ssd1306_draw_string(&ssd,"BEM VINDO",30,0);
+    ssd1306_draw_string(&ssd,"AO RELOGIO",25,27);
+    ssd1306_draw_string(&ssd,"BITDOGLAB!",25,54);
+    ssd1306_send_data(&ssd);
+    ssd1306_fill(&ssd, 0);
+    //sleep_ms(3000);
+
+    ssd1306_draw_string(&ssd,"SELECIONE",30,0);
+    ssd1306_draw_string(&ssd,"O QUE",45,27);
+    ssd1306_draw_string(&ssd,"DESEJA",40,54);
+    ssd1306_send_data(&ssd);
+    //ssd1306_fill(&ssd, 0);
+    draw_options();
+   // sleep_ms(3000);
+   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
   while (true)
   {
-   adc_select_input(0);
+    adc_select_input(0);
    uint16_t vry_value = adc_read();
    adc_select_input(1); 
    uint16_t vrx_value = adc_read();
    
-   
-   //O .0 é importante pra indicar que quero um numero fracionario (Caso contrario resulta em 0)
-   //O 120 serve pra compensar o fato do display ter eixo Y com sentido pra baixo e o joystick
-   //ter o eixo y com sentido pra cima
-   teste1=56-(uint8_t)round(56*(vry_value/4095.0));
-   teste2=(uint8_t)round(120*(vrx_value/4095.0));
-
-   if(leds_ativos){
-    if(teste2 >=54 && teste2 <=60)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
-    red_level=0;
-    else if(teste2>60){
-    red_level= (uint16_t)floor(2.0*(vrx_value-2050));
-    if(red_level>=4072) red_level=4096;
-    } else{//Caso o Joystick esteja sendo empurrado pra esquerda (<54)
-      //red_level=4096-vrx_value;
-      red_level=(uint16_t)floor(2.5*(1680-vrx_value));
-      if(red_level>4096) red_level=4096;
+   comando_joystick(vry_value);
+   if(pressed){
+     pressed=0;
+     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &interrupt);
+     gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+     switch(selected){
+      case 0: cronometro(); break;
+      case 1: temporizador(); break;
     }
-    pwm_set_gpio_level(RED,red_level);
+   rec_pos=selected=0;
+   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
+   draw_options();
+   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+   }
+   /*
+   current_time = to_ms_since_boot(get_absolute_time());
+   if(current_time - last_time2 >= 1000){
+   printf("valor em vry: %u\nvalor em vrx: %u\n\n",vry_value,vrx_value);
+    last_time2=current_time;
+   }
+   */
 
-
-    if(teste1 >=29 && teste1 <=31)//Pra compensar a variação da faixa normal quando o Joystick estiver parado
-    blue_level=0;
-    else if(teste1<29){
-    blue_level= (uint16_t)floor(2.0*(vry_value-2050));
-    if(blue_level>=4072) blue_level=4096;
-    } else{//Caso o Joystick esteja sendo empurrado pra baixo
-      blue_level=(uint16_t)floor(2.5*(1680-vry_value));
-      if(blue_level>4096) blue_level=4096;
-    }
-    pwm_set_gpio_level(BLUE,blue_level);
+   sleep_ms(50);
   }
-
-   //Coloca limites maximos e minimos pra movimentação do quadrado
-   if(teste1 < 4) teste1=4;
-   else if(teste1 > 52) teste1=52;
-
-   if(teste2 > 115) teste2=115;
-   else if(teste2 < 2) teste2=2;
-   
-   //current_time = to_ms_since_boot(get_absolute_time());
-   //if(current_time - last_time >= 1000){
-   //printf("red_level: %u\n",red_level);
-   //printf("valor em y: %u\nvalor em x: %u\n\n",teste1,teste2);
-   //printf("blue_level: %u\n",blue_level);
-   //printf("valor em vry: %u\nvalor em vrx: %u\n\n",vry_value,vrx_value);
-   // last_time=current_time;
-   //}
-   ssd1306_fill(&ssd, !cor); // Limpa o display
-   ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
-   ssd1306_draw_square(&ssd,teste2,teste1);
-   ssd1306_send_data(&ssd);
-   sleep_ms(10);
-  }
+  
 }

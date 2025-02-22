@@ -1,6 +1,7 @@
 #include "ssd1306.h"
 #include "font.h"
 
+//Função interessante de estudar
 void ssd1306_init(ssd1306_t *ssd, uint8_t width, uint8_t height, bool external_vcc, uint8_t address, i2c_inst_t *i2c) {
   ssd->width = width;
   ssd->height = height;
@@ -8,9 +9,9 @@ void ssd1306_init(ssd1306_t *ssd, uint8_t width, uint8_t height, bool external_v
   ssd->address = address;
   ssd->i2c_port = i2c;
   ssd->bufsize = ssd->pages * ssd->width + 1;
-  ssd->ram_buffer = calloc(ssd->bufsize, sizeof(uint8_t));
-  ssd->ram_buffer[0] = 0x40;
-  ssd->port_buffer[0] = 0x80;
+  ssd->ram_buffer = calloc(ssd->bufsize, sizeof(uint8_t));//Calloc inicializa tudo com 0
+  ssd->ram_buffer[0] = 0x40; //altura
+  ssd->port_buffer[0] = 0x80; //largura
 }
 
 void ssd1306_config(ssd1306_t *ssd) {
@@ -75,6 +76,7 @@ void ssd1306_send_data(ssd1306_t *ssd) {
 }
 }
 
+//COnfigura quais pixels serão ativos
 void ssd1306_pixel(ssd1306_t *ssd, uint8_t x, uint8_t y, bool value) {
   uint16_t index = (y >> 3) + (x << 3) + 1;
   uint8_t pixel = (y & 0b111);
@@ -160,6 +162,15 @@ void ssd1306_vline(ssd1306_t *ssd, uint8_t x, uint8_t y0, uint8_t y1, bool value
     ssd1306_pixel(ssd, x, y, value);
 }
 
+uint16_t achar_coordenadas_X(const char *string){
+  switch(string[1]){
+   case 'R': return 30;
+   case 'E':
+   case 'J': return 20;
+   default: return 40;
+  }
+}
+
 // Função para desenhar um caractere
 void ssd1306_draw_char(ssd1306_t *ssd, char c, uint8_t x, uint8_t y)
 {
@@ -172,13 +183,35 @@ void ssd1306_draw_char(ssd1306_t *ssd, char c, uint8_t x, uint8_t y)
   {
     index = (c - '0' + 1) * 8; // Adiciona o deslocamento necessário
   }else if(c >= 'a' && c <= 'z') index = (c - 'a' + 37) * 8;
-  
+  else if(c >=' ' && c <= '/') index = (c - ' ' + 512);
   for (uint8_t i = 0; i < 8; ++i)//Caracteres exibidos 8x8
   {
     uint8_t line = font[index + i];
     for (uint8_t j = 0; j < 8; ++j)//Caracteres exibidos 8x8
     {
       ssd1306_pixel(ssd, x + i, y + j, line & (1 << j));
+    }
+  }
+}
+
+void ssd1306_draw_char_reverse(ssd1306_t *ssd, char c, uint8_t x, uint8_t y)
+{
+  uint16_t index = 0;
+  char ver=c;
+  if (c >= 'A' && c <= 'Z')
+  {
+    index = (c - 'A' + 11) * 8; // Para letras maiúsculas
+  }else  if (c >= '0' && c <= '9')
+  {
+    index = (c - '0' + 1) * 8; // Adiciona o deslocamento necessário
+  }else if(c >= 'a' && c <= 'z') index = (c - 'a' + 37) * 8;
+  else if(c >=' ' && c <= '/') index = (c - ' ' + 512);
+  for (uint8_t i = 0; i < 8; ++i)//Caracteres exibidos 8x8
+  {
+    uint8_t line = font[index + i];
+    for (uint8_t j = 0; j < 8; ++j)//Caracteres exibidos 8x8
+    {
+      ssd1306_pixel(ssd, x + i, y + j, !(line & (1 << j)));
     }
   }
 }
@@ -196,12 +229,65 @@ void ssd1306_draw_square(ssd1306_t *ssd, uint8_t x, uint8_t y)
   }
 }
 
+void draw_background_rectangle(ssd1306_t *ssd,uint8_t option,uint8_t selected){
+ switch(option){
+  case 0: for (uint8_t i = 10; i <= 117 ; ++i)//Caracteres exibidos 8x8
+          {
+          for (uint8_t j = 0; j <= 9; ++j)//Caracteres exibidos 8x8
+          {
+            ssd1306_pixel(ssd, i, j,1);
+          }
+          }
+          ssd1306_draw_string_reverse(ssd,opt_list[selected],achar_coordenadas_X(opt_list[selected]),1);
+          break;
+
+  case 1: for (uint8_t i = 10; i <= 117 ; ++i)//Caracteres exibidos 8x8
+          {
+          for (uint8_t j = 26; j <= 35; ++j)//Caracteres exibidos 8x8
+          {
+            ssd1306_pixel(ssd, i, j,1);
+          }
+          }
+          ssd1306_draw_string_reverse(ssd,opt_list[selected],achar_coordenadas_X(opt_list[selected]),27);
+          break;
+          
+  case 2: for (uint8_t i = 10; i <= 117 ; ++i)//Caracteres exibidos 8x8
+          {
+          for (uint8_t j = 53; j <= 62; ++j)//Caracteres exibidos 8x8
+          {
+            ssd1306_pixel(ssd, i, j,1);
+          }
+          }
+          ssd1306_draw_string_reverse(ssd,opt_list[selected],achar_coordenadas_X(opt_list[selected]),54);
+          break;
+}
+ //ssd1306_send_data(ssd);
+}
+
 // Função para desenhar uma string
 void ssd1306_draw_string(ssd1306_t *ssd, const char *str, uint8_t x, uint8_t y)
 {
   while (*str)
   {
     ssd1306_draw_char(ssd, *str++, x, y);
+    x += 8;
+    if (x + 8 >= ssd->width)
+    {
+      x = 0;
+      y += 8;
+    }
+    if (y + 8 >= ssd->height)
+    {
+      break;
+    }
+  }
+}
+
+void ssd1306_draw_string_reverse(ssd1306_t *ssd, const char *str, uint8_t x, uint8_t y)
+{
+  while (*str)
+  {
+    ssd1306_draw_char_reverse(ssd, *str++, x, y);
     x += 8;
     if (x + 8 >= ssd->width)
     {
