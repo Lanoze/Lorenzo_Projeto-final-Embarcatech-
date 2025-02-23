@@ -82,7 +82,8 @@ void cronometro_callback(uint gpio, uint32_t events){
      printf("Start = %d\n",start);
      if(start){
      //start_time = time_us_64();
-     add_repeating_timer_ms(1000, timer_cronometro, NULL, &timer1);
+     //Tive que colocar 71ms pra compensar o tempo gasto na função de incrementar cronômetro
+     add_repeating_timer_ms(71, timer_cronometro, NULL, &timer1);
      }
     }
     else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
@@ -95,7 +96,7 @@ void cronometro_callback(uint gpio, uint32_t events){
       for(uint8_t i=0;i<6;i++)
       {valor_exibido[i]=0;}
       ssd1306_fill(&ssd, 0);
-      ssd1306_draw_string(&ssd,"000:000",10,0);
+      ssd1306_draw_string(&ssd,"00000.0",10,0);
      ssd1306_send_data(&ssd);
     }
   }
@@ -115,6 +116,7 @@ uint pwm_init_gpio(uint gpio, uint wrap) {
 void incrementar_cronometro(){
   //if(debug_aux == 1000){start=0; return;}
   //printf("Debug aux= %d\n",debug_aux);
+  uint32_t current_time = to_ms_since_boot(get_absolute_time());
   if(valor_exibido[5]<9) valor_exibido[5]++;
   else
   {
@@ -155,9 +157,11 @@ void incrementar_cronometro(){
   }
  //debug_aux++;
   ssd1306_fill(&ssd, 0);
-  sprintf(tempo,"%d%d%d:%d%d%d",valor_exibido[0],valor_exibido[1],valor_exibido[2],valor_exibido[3],valor_exibido[4],valor_exibido[5]);
+  sprintf(tempo,"%d%d%d%d%d.%d",valor_exibido[0],valor_exibido[1],valor_exibido[2],valor_exibido[3],valor_exibido[4],valor_exibido[5]);
   ssd1306_draw_string(&ssd,tempo,10,0);
   ssd1306_send_data(&ssd);
+  printf("Tempo da funcao: %d\n",current_time-time_teste);
+   time_teste=current_time;
 }
 
 void cronometro(){
@@ -167,7 +171,7 @@ void cronometro(){
   selected=0; //Vai ser usada pra determinar quando sair da função
   ssd1306_fill(&ssd, 0);
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &cronometro_callback);
-  ssd1306_draw_string(&ssd,"CRONOS",30,0);
+  ssd1306_draw_string(&ssd,"00000.0",10,0);
   ssd1306_send_data(&ssd);
   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &cronometro_callback);
   gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &cronometro_callback);
