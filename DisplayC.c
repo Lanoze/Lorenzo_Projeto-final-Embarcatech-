@@ -208,30 +208,34 @@ void cronometro(){
 }
 
 void selecionar_temporizador(uint16_t y){
+  static uint16_t rapido=200;//Aumenta a velocidade quando o joystick é segurado por um tempo na mesma posição
   uint16_t current_time = to_ms_since_boot(get_absolute_time());
-  if(current_time-last_time>=200){
+  if(current_time-last_time>=rapido){
+    last_time=current_time;
      if(y>=3500){//joystick pra cima
-       last_time=current_time;
+       //last_time=current_time;
+       if(rapido >= 50) rapido-=10;
        if(rec_pos<100)
        rec_pos++;
-       else
-       rec_pos=0;
-       sprintf(tempo,"%d",rec_pos);
-       ssd1306_fill(&ssd, 0);
-       ssd1306_draw_string(&ssd,tempo,30,0);
-       ssd1306_send_data(&ssd);
-     }
-     else if(y<=700){//Joystick pra baixo
-       last_time=current_time;
-       if(rec_pos>0)
-       rec_pos--;
        else
        rec_pos=100;
        sprintf(tempo,"%d",rec_pos);
        ssd1306_fill(&ssd, 0);
        ssd1306_draw_string(&ssd,tempo,30,0);
        ssd1306_send_data(&ssd);
-      }
+     }
+     else if(y<=700){//Joystick pra baixo
+       //last_time=current_time;
+       if(rapido >= 50) rapido-=10;
+       if(rec_pos>0)
+       rec_pos--;
+       else
+       rec_pos=0;
+       sprintf(tempo,"%d",rec_pos);
+       ssd1306_fill(&ssd, 0);
+       ssd1306_draw_string(&ssd,tempo,30,0);
+       ssd1306_send_data(&ssd);
+      }else rapido=200;
      }
    }
 
@@ -247,9 +251,10 @@ void selecionar_temporizador(uint16_t y){
        if(start){
        //add_repeating_timer_ms(100, timer_set, NULL, &timer1);
        timer_set();
-       } else{
-        limpar_matriz();
-       }
+       }// else{
+
+        //limpar_matriz();
+       //}
       }
       else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
         puts("JOYSTICK Click");
@@ -258,29 +263,30 @@ void selecionar_temporizador(uint16_t y){
         gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
        }
       else{ //Botão A
-       
+       start=0;
+       limpar_matriz();
       }
     }
   }
 
  bool timer_countdown(){
    uint32_t current_time = to_ms_since_boot(get_absolute_time()),i;
-   if(!rec_pos){start=0; return false;}
+   if(!rec_pos || !start){start=0; return false;}
    else if(rec_pos>75){
      rec_pos--;
-     uint8_t aux=rec_pos-75; //Armazena o índice exato do LED a ser alterado
-     uint32_t color_new = urgb_u32(0, 5, 5),color_old=urgb_u32(0, 5, 0);
-
-     if(start){
       ssd1306_fill(&ssd, 0);
       sprintf(tempo,"%d",rec_pos);
       ssd1306_draw_string(&ssd,tempo,30,0);
       ssd1306_send_data(&ssd);
+     uint8_t aux=rec_pos-75; //Armazena o índice exato do LED a ser alterado
+     uint32_t color_new = urgb_u32(0, 5, 5),color_old=urgb_u32(0, 5, 0);
+
+     
 
      for(i=0;i<aux;i++)
      put_pixel(color_old);
      put_pixel(color_new);
-     }
+    
      printf("Tempo da funcao: %d\n",current_time-time_teste);
      time_teste=current_time;
      return start;
@@ -289,19 +295,19 @@ void selecionar_temporizador(uint16_t y){
 
     if(rec_pos>50){
       rec_pos--;
+      ssd1306_fill(&ssd, 0);
+      sprintf(tempo,"%d",rec_pos);
+      ssd1306_draw_string(&ssd,tempo,30,0);
+      ssd1306_send_data(&ssd);
       uint8_t aux=rec_pos-50; //Armazena o índice exato do LED a ser alterado
       uint32_t color_new = urgb_u32(5, 5, 0),color_old=urgb_u32(0, 5, 5);
  
-      if(start){
-       ssd1306_fill(&ssd, 0);
-       sprintf(tempo,"%d",rec_pos);
-       ssd1306_draw_string(&ssd,tempo,30,0);
-       ssd1306_send_data(&ssd);
+      
  
       for(i=0;i<aux;i++)
       put_pixel(color_old);
       put_pixel(color_new);
-      }
+
       printf("Tempo da funcao: %d\n",current_time-time_teste);
       time_teste=current_time;
       return start;
@@ -309,38 +315,36 @@ void selecionar_temporizador(uint16_t y){
 
     if(rec_pos>25){
       rec_pos--;
+      ssd1306_fill(&ssd, 0);
+      sprintf(tempo,"%d",rec_pos);
+      ssd1306_draw_string(&ssd,tempo,30,0);
+      ssd1306_send_data(&ssd);
       uint8_t aux=rec_pos-25; //Armazena o índice exato do LED a ser alterado
       uint32_t color_new = urgb_u32(5, 0, 0),color_old=urgb_u32(5, 5, 0);
- 
-      if(start){
-       ssd1306_fill(&ssd, 0);
-       sprintf(tempo,"%d",rec_pos);
-       ssd1306_draw_string(&ssd,tempo,30,0);
-       ssd1306_send_data(&ssd);
+
+
  
       for(i=0;i<aux;i++)
       put_pixel(color_old);
       put_pixel(color_new);
-      }
+
       printf("Tempo da funcao: %d\n",current_time-time_teste);
       time_teste=current_time;
       return start;
 
     }else{
       rec_pos--;
+      ssd1306_fill(&ssd, 0);
+      sprintf(tempo,"%d",rec_pos);
+      ssd1306_draw_string(&ssd,tempo,30,0);
+      ssd1306_send_data(&ssd);
       uint8_t aux=rec_pos; //Armazena o índice exato do LED a ser alterado
       uint32_t color_new = urgb_u32(0, 0, 0),color_old=urgb_u32(5, 0, 0);
- 
-      if(start){
-       ssd1306_fill(&ssd, 0);
-       sprintf(tempo,"%d",rec_pos);
-       ssd1306_draw_string(&ssd,tempo,30,0);
-       ssd1306_send_data(&ssd);
  
       for(i=0;i<aux;i++)
       put_pixel(color_old);
       put_pixel(color_new);
-      }
+
       printf("Tempo da funcao: %d\n",current_time-time_teste);
       time_teste=current_time;
       return start;
