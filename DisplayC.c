@@ -21,6 +21,7 @@
 #define GREEN 11
 #define BLUE 12
 #define RED 13
+#define BUZZER_A 21
 #define BUTTON_A 5
 #define BUTTON_B 6
 #define VRX_PIN 26   
@@ -45,6 +46,27 @@ void cronometro();
 void temporizador();
 void incrementar_cronometro();
 void timer_set();
+void temporizador_callback();
+
+void alarmer_buzzer(){
+  ssd1306_fill(&ssd, 0);
+  ssd1306_draw_string(&ssd,"APERTE B",30,25);
+  ssd1306_send_data(&ssd);
+
+  while(gpio_get(BUTTON_B) != 0 /*&& pressed==1*/){
+ pwm_set_gpio_level(BUZZER_A,3000);
+ sleep_us(900);
+ pwm_set_gpio_level(BUZZER_A,0);
+ sleep_us(900);
+ }
+ while(gpio_get(BUTTON_B) == 0) sleep_us(1);//Debounce
+ pressed=0;
+ //gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
+  ssd1306_fill(&ssd, 0);
+  ssd1306_draw_string(&ssd,"0",30,0);
+  ssd1306_send_data(&ssd);
+ puts("Chegou ao fim");
+}
 
 //Rotina de interrupção
 void interrupt(uint gpio, uint32_t events)
@@ -259,7 +281,8 @@ void selecionar_temporizador(uint16_t y){
       else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
         puts("JOYSTICK Click");
         selected=1;
-        start=0;
+        pressed=start=0;
+        limpar_matriz();
         gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
        }
       else{ //Botão A
@@ -271,7 +294,11 @@ void selecionar_temporizador(uint16_t y){
 
  bool timer_countdown(){
    uint32_t current_time = to_ms_since_boot(get_absolute_time()),i;
-   if(!rec_pos || !start){start=0; return false;}
+   if(!rec_pos && !pressed){
+    puts("Countdown");
+    start=0; pressed=1; return false;
+  }
+   if(!start){return false;}
    else if(rec_pos>75){
      rec_pos--;
       ssd1306_fill(&ssd, 0);
@@ -392,6 +419,12 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
    //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
    return;
   }
+
+  if(pressed){ puts("ENTROU");
+     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &temporizador_callback);
+     alarmer_buzzer();
+    }
+  else gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
    adc_select_input(0);
    uint16_t vry_value = adc_read();
 
@@ -486,8 +519,7 @@ int main()
     gpio_set_dir(BUTTON_B, GPIO_IN); // Configura o pino como entrada
     gpio_pull_up(BUTTON_B);
 
-    pwm_init_gpio(RED, 4096);
-    pwm_init_gpio(BLUE, 4096);
+    pwm_init_gpio(BUZZER_A, 4096);
 
     limpar_matriz();
 
