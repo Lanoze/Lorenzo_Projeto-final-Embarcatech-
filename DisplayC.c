@@ -11,6 +11,8 @@
 #include "hardware/timer.h"
 #include "hardware/adc.h"     
 #include "hardware/pwm.h"
+#include "ws2812.pio.h"
+#include "ledtriz.h"
 
 #define I2C_PORT i2c1
 #define I2C_SDA 14
@@ -25,6 +27,7 @@
 #define VRY_PIN 27   
 #define JOYSTICK_BUTTON 22
 
+
 uint32_t last_time=0,last_time2=0,last_time3=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
 bool leds_ativos=1,cor=1,pressed=0,start=0;
@@ -34,13 +37,14 @@ uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, s�
 uint8_t selected=0; //0=Cronometro, 1=Temporizador, 2=Ajustar hora, 3=Alarme, 4 ou mais=Inválido
 uint8_t valor_exibido[6];//Valores exibidos no cronômetro
 uint32_t debug_aux=0;//Variável pra ajudar na depuração
-struct repeating_timer timer1;
+struct repeating_timer timer1,timer2;
 char tempo[8];
 
 void draw_options();
 void cronometro();
 void temporizador();
 void incrementar_cronometro();
+void timer_set();
 
 //Rotina de interrupção
 void interrupt(uint gpio, uint32_t events)
@@ -90,6 +94,9 @@ void cronometro_callback(uint gpio, uint32_t events){
       puts("JOYSTICK Click");
       selected=1;
       start=0;
+      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &cronometro_callback);
+      gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, false, &cronometro_callback);
+      gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &cronometro_callback);
       gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
      }
     else{ //Botão A
@@ -200,11 +207,179 @@ void cronometro(){
  }
 }
 
-void temporizador(){
-  selected=0; //Vai ser usada pra determinar quando sair da função
+void selecionar_temporizador(uint16_t y){
+  uint16_t current_time = to_ms_since_boot(get_absolute_time());
+  if(current_time-last_time>=200){
+     if(y>=3500){//joystick pra cima
+       last_time=current_time;
+       if(rec_pos<100)
+       rec_pos++;
+       else
+       rec_pos=0;
+       sprintf(tempo,"%d",rec_pos);
+       ssd1306_fill(&ssd, 0);
+       ssd1306_draw_string(&ssd,tempo,30,0);
+       ssd1306_send_data(&ssd);
+     }
+     else if(y<=700){//Joystick pra baixo
+       last_time=current_time;
+       if(rec_pos>0)
+       rec_pos--;
+       else
+       rec_pos=100;
+       sprintf(tempo,"%d",rec_pos);
+       ssd1306_fill(&ssd, 0);
+       ssd1306_draw_string(&ssd,tempo,30,0);
+       ssd1306_send_data(&ssd);
+      }
+     }
+   }
+
+   void temporizador_callback(uint gpio, uint32_t events){
+    uint32_t current_time = to_us_since_boot(get_absolute_time());
+    // Verifica se passou tempo suficiente desde o último evento
+    if (current_time - last_time2 > 300000) // 300 ms de debouncing
+    {
+      last_time2=current_time;
+     if(gpio==BUTTON_B){
+       start = !start;
+       printf("Start = %d\n",start);
+       if(start){
+       //add_repeating_timer_ms(100, timer_set, NULL, &timer1);
+       timer_set();
+       } else{
+        limpar_matriz();
+       }
+      }
+      else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
+        puts("JOYSTICK Click");
+        selected=1;
+        start=0;
+        gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+       }
+      else{ //Botão A
+       
+      }
+    }
+  }
+
+ bool timer_countdown(){
+   uint32_t current_time = to_ms_since_boot(get_absolute_time()),i;
+   if(!rec_pos){start=0; return false;}
+   else if(rec_pos>75){
+     rec_pos--;
+     uint8_t aux=rec_pos-75; //Armazena o índice exato do LED a ser alterado
+     uint32_t color_new = urgb_u32(0, 5, 5),color_old=urgb_u32(0, 5, 0);
+
+     if(start){
+      ssd1306_fill(&ssd, 0);
+      sprintf(tempo,"%d",rec_pos);
+      ssd1306_draw_string(&ssd,tempo,30,0);
+      ssd1306_send_data(&ssd);
+
+     for(i=0;i<aux;i++)
+     put_pixel(color_old);
+     put_pixel(color_new);
+     }
+     printf("Tempo da funcao: %d\n",current_time-time_teste);
+     time_teste=current_time;
+     return start;
+
+    }else
+
+    if(rec_pos>50){
+      rec_pos--;
+      uint8_t aux=rec_pos-50; //Armazena o índice exato do LED a ser alterado
+      uint32_t color_new = urgb_u32(5, 5, 0),color_old=urgb_u32(0, 5, 5);
+ 
+      if(start){
+       ssd1306_fill(&ssd, 0);
+       sprintf(tempo,"%d",rec_pos);
+       ssd1306_draw_string(&ssd,tempo,30,0);
+       ssd1306_send_data(&ssd);
+ 
+      for(i=0;i<aux;i++)
+      put_pixel(color_old);
+      put_pixel(color_new);
+      }
+      printf("Tempo da funcao: %d\n",current_time-time_teste);
+      time_teste=current_time;
+      return start;
+    }else 
+
+    if(rec_pos>25){
+      rec_pos--;
+      uint8_t aux=rec_pos-25; //Armazena o índice exato do LED a ser alterado
+      uint32_t color_new = urgb_u32(5, 0, 0),color_old=urgb_u32(5, 5, 0);
+ 
+      if(start){
+       ssd1306_fill(&ssd, 0);
+       sprintf(tempo,"%d",rec_pos);
+       ssd1306_draw_string(&ssd,tempo,30,0);
+       ssd1306_send_data(&ssd);
+ 
+      for(i=0;i<aux;i++)
+      put_pixel(color_old);
+      put_pixel(color_new);
+      }
+      printf("Tempo da funcao: %d\n",current_time-time_teste);
+      time_teste=current_time;
+      return start;
+
+    }else{
+      rec_pos--;
+      uint8_t aux=rec_pos; //Armazena o índice exato do LED a ser alterado
+      uint32_t color_new = urgb_u32(0, 0, 0),color_old=urgb_u32(5, 0, 0);
+ 
+      if(start){
+       ssd1306_fill(&ssd, 0);
+       sprintf(tempo,"%d",rec_pos);
+       ssd1306_draw_string(&ssd,tempo,30,0);
+       ssd1306_send_data(&ssd);
+ 
+      for(i=0;i<aux;i++)
+      put_pixel(color_old);
+      put_pixel(color_new);
+      }
+      printf("Tempo da funcao: %d\n",current_time-time_teste);
+      time_teste=current_time;
+      return start;
+    }
+  }
+
+ //Seta o estado inicial da matriz de LEDs do temporizador
+ void timer_set(){
+  //uint32_t current_time = to_ms_since_boot(get_absolute_time());
+  if(rec_pos>75){
+    uint8_t aux=rec_pos-75;
+    uint8_t aux2 = set_one_led(0,5,0,aux);//verde
+    set_leds_start(0,5,5,aux2);//ciano
+  } else if(rec_pos>50){
+    uint8_t aux=rec_pos-50;
+    uint8_t aux2 = set_one_led(0,5,5,aux);//ciano
+    set_leds_start(5,5,0,aux2);//amarelo
+  } else if(rec_pos>25){
+    uint8_t aux=rec_pos-25;
+    uint8_t aux2 = set_one_led(5,5,0,aux);//amarelo
+    set_leds_start(5,0,0,aux2);//vermelho
+  } else{// <=25 Leds
+    uint8_t aux2 = set_one_led(5,0,0,rec_pos);//vermelho
+  }
+ //971 ms pra compensar o tempo gasto pela função
+  add_repeating_timer_ms(971, timer_countdown, NULL, &timer2);
+ // printf("Tempo da funcao: %d\n",current_time-time_teste);
+ // time_teste=current_time;
+  
+ }
+
+//Até 100 segundos
+void temporizador(){//A variável rec_pos vai definir o valor do temporizador
+  rec_pos=selected=0; //Vai ser usada pra determinar quando sair da função
+  gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
+  gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
+  gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
   ssd1306_fill(&ssd, 0);
-  //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
-  ssd1306_draw_string(&ssd,"TEMPORIZADOR",30,0);
+  ssd1306_draw_string(&ssd,"0",30,0);
   ssd1306_send_data(&ssd);
   
   while(1){
@@ -213,7 +388,12 @@ void temporizador(){
    //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
    return;
   }
-  sleep_ms(50);
+   adc_select_input(0);
+   uint16_t vry_value = adc_read();
+
+   if(!start)
+   selecionar_temporizador(vry_value);
+   sleep_us(1);
  }
 }
 
@@ -280,7 +460,13 @@ int main()
   adc_gpio_init(VRY_PIN); 
   gpio_init(JOYSTICK_BUTTON);
   gpio_set_dir(JOYSTICK_BUTTON, GPIO_IN);
-  gpio_pull_up(JOYSTICK_BUTTON); 
+  gpio_pull_up(JOYSTICK_BUTTON);
+  
+  PIO pio = pio0;
+    int sm = 0;
+    uint offset = pio_add_program(pio, &ws2812_program);
+
+    ws2812_program_init(pio, sm, offset, WS2812_PIN, 800000, IS_RGBW);
 
     stdio_init_all();
 
@@ -297,7 +483,9 @@ int main()
     gpio_pull_up(BUTTON_B);
 
     pwm_init_gpio(RED, 4096);
-    pwm_init_gpio(BLUE, 4096); 
+    pwm_init_gpio(BLUE, 4096);
+
+    limpar_matriz();
 
 
     //A partir daqui começa meu projeto final
@@ -327,7 +515,7 @@ int main()
    if(pressed){
      pressed=0;
      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &interrupt);
-     gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+     //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &interrupt);
      switch(selected){
       case 0: cronometro(); break;
       case 1: temporizador(); break;
