@@ -31,8 +31,8 @@
 
 uint32_t last_time=0,last_time2=0,last_time3=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
-bool leds_ativos=1,cor=1,pressed=0,start=0;
-uint8_t teste1,teste2;
+bool leds_ativos=1,cor=1,pressed=0,start=0,no_menu=1;
+//uint8_t teste1,teste2;
 uint8_t rec_pos=0; //Vai de 0 a 2
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
 uint8_t selected=0; //0=Cronometro, 1=Temporizador, 2=Ajustar hora, 3=Alarme, 4 ou mais=Inválido
@@ -53,7 +53,7 @@ void alarmer_buzzer(){
   ssd1306_draw_string(&ssd,"APERTE B",30,25);
   ssd1306_send_data(&ssd);
 
-  while(gpio_get(BUTTON_B) != 0 /*&& pressed==1*/){
+  while(gpio_get(BUTTON_B) != 0 && pressed==1){
  pwm_set_gpio_level(BUZZER_A,3000);
  sleep_us(900);
  pwm_set_gpio_level(BUZZER_A,0);
@@ -295,8 +295,9 @@ void selecionar_temporizador(uint16_t y){
  bool timer_countdown(){
    uint32_t current_time = to_ms_since_boot(get_absolute_time()),i;
    if(!rec_pos && !pressed){
+    //if(selected==1) return false;
     puts("Countdown");
-    start=0; pressed=1; return false;
+    start=0; if(!no_menu)pressed=1; return false;
   }
    if(!start){return false;}
    else if(rec_pos>75){
@@ -405,7 +406,7 @@ void selecionar_temporizador(uint16_t y){
 
 //Até 100 segundos
 void temporizador(){//A variável rec_pos vai definir o valor do temporizador
-  rec_pos=selected=0; //Vai ser usada pra determinar quando sair da função
+  no_menu=rec_pos=selected=0; //Vai ser usada pra determinar quando sair da função
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
   gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
@@ -560,6 +561,8 @@ int main()
    gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
    draw_options();
    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+   //pressed=0;
+   no_menu=1;
    }
    /*
    current_time = to_ms_since_boot(get_absolute_time());
