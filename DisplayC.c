@@ -442,7 +442,7 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
 }
 
 bool atualizar_horario(){
- if(!ajustando_hora) //Buga as coisas
+ if(!ajustando_hora) //Só atualiza o tempo se não estiver ajustando a hora
  {
  if(relog[1]<59) relog[1]++;
  else{
@@ -466,19 +466,26 @@ bool atualizar_horario(){
 }
 
 void definir_horario(uint16_t y){
+  static uint8_t rapido=200;
+  uint32_t current_time = to_ms_since_boot(get_absolute_time());
+  if(current_time-last_time4 >= rapido){
+  last_time4=current_time;
   if(y>=3500){
+   if(rapido > 30) rapido-=10;
     if(rec_pos==0 && relog[0]<23){
     relog[0]++;
    }else if(rec_pos==1 && relog[1]<59){
     relog[1]++;
    }
   }else if(y<=700){
+    if(rapido > 30) rapido-=10;
     if(rec_pos==0 && relog[0]>0){
       relog[0]--;
      }else if(rec_pos==1 && relog[1]>0){
       relog[1]--;
      }
-  }
+  } else rapido=200;
+ }
 }
 
 void relogio_set_callback(uint gpio, uint32_t events){
@@ -489,13 +496,14 @@ void relogio_set_callback(uint gpio, uint32_t events){
     last_time2=current_time;
    if(gpio==BUTTON_B){
      relogio_ativo = 1;
+     ajustando_hora=0;
      printf("Please...\n");
      
     }
     else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
       puts("JOYSTICK Click");
       selected=1;
-      pressed=start=0;
+      ajustando_hora=pressed=start=0;
       gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
      }
   }
@@ -657,7 +665,7 @@ void meu_alarme_callback(uint gpio, uint32_t events){
   if (current_time - last_time2 > 300000) // 300 ms de debouncing
   {
     last_time2=current_time;
-   if(gpio==BUTTON_B && !alarme_ativo && valor_exibido[0]!=0){
+   if(gpio==BUTTON_B && !alarme_ativo){
      alarme_ativo = 1;
      printf("Alarme definido\n");
      add_alarm_in_ms(valor_exibido[0]*1000, alarme_comum, NULL, false);
@@ -718,7 +726,7 @@ void colocar_alarme(){
  }
  else{
   ssd1306_fill(&ssd, 0);
-  ssd1306_draw_string(&ssd,"ATIVO",60,30);
+  ssd1306_draw_string(&ssd,"ATIVO",45,30);
   ssd1306_send_data(&ssd);
   sleep_ms(800);
   return;
