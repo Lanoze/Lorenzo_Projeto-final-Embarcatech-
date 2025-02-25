@@ -29,17 +29,18 @@
 #define JOYSTICK_BUTTON 22
 
 
-uint32_t last_time=0,last_time2=0,last_time3=0,time_teste=0,start_time;
+uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
-bool leds_ativos=1,cor=1,pressed=0,start=0,no_menu=1;
+bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1;
 //uint8_t teste1,teste2;
 uint8_t rec_pos=0; //Vai de 0 a 2
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
 uint8_t selected=0; //0=Cronometro, 1=Temporizador, 2=Ajustar hora, 3=Alarme, 4 ou mais=Inválido
 uint8_t valor_exibido[6];//Valores exibidos no cronômetro
 uint32_t debug_aux=0;//Variável pra ajudar na depuração
-struct repeating_timer timer1,timer2;
+struct repeating_timer timer1,timer2,timer3;
 char tempo[8];
+uint8_t relog[2]={0,0};//Guarda o valor das horas e minutos do relógio
 
 void draw_options();
 void cronometro();
@@ -47,6 +48,8 @@ void temporizador();
 void incrementar_cronometro();
 void timer_set();
 void temporizador_callback();
+void ajustar_hora_callback();
+void relogio_set();
 
 void alarmer_buzzer(){
   ssd1306_fill(&ssd, 0);
@@ -435,6 +438,142 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
  }
 }
 
+bool atualizar_horario(){
+ if(relog[1]<59) relog[1]++;
+ else{
+  if(relog[0]<23){
+    relog[0]++;
+    relog[1]=0;
+  }
+  else{
+    relog[0]=relog[1]=0;//Ao dar meia noite, zera o relógio
+  }
+ }
+ return relogio_ativo;
+}
+
+void definir_horario(uint16_t y){
+  if(y>=3500){
+    if(rec_pos==0 && relog[0]<23){
+    relog[0]++;
+   }else if(rec_pos==1 && relog[1]<59){
+    relog[1]++;
+   }
+  }else if(y<=700){
+    if(rec_pos==0 && relog[0]>0){
+      relog[0]--;
+     }else if(rec_pos==1 && relog[1]>0){
+      relog[1]--;
+     }
+  }
+}
+
+void relogio_set_callback(uint gpio, uint32_t events){
+  uint32_t current_time = to_us_since_boot(get_absolute_time());
+  // Verifica se passou tempo suficiente desde o último evento
+  if (current_time - last_time2 > 300000) // 300 ms de debouncing
+  {
+    last_time2=current_time;
+   if(gpio==BUTTON_B){
+     relogio_ativo = 1;
+     printf("Please...\n");
+     
+    }
+    else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
+      puts("JOYSTICK Click");
+      selected=1;
+      pressed=start=0;
+      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+     }
+  }
+}
+
+void relogio_set(char *str_aux){
+  static char escolhido[7]="HORA";
+  relogio_ativo=rec_pos=0;
+  gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
+  gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &ajustar_hora_callback);
+  //last_time3=to_us_since_boot(get_absolute_time());
+  gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
+  ssd1306_draw_string(&ssd,escolhido,50,50);
+  ssd1306_send_data(&ssd);
+  //while(gpio_get(BUTTON_B)==0){sleep_us(10);}
+
+  while(1){
+    if(selected == 1)
+      {start=0; return;}
+    
+  ssd1306_fill(&ssd, 0);
+  ssd1306_draw_string(&ssd,escolhido,50,50);
+  sprintf(str_aux,"%d:%d",relog[0],relog[1]);
+  ssd1306_draw_string(&ssd,str_aux,50,30);
+  ssd1306_send_data(&ssd);
+
+  adc_select_input(0);
+  uint16_t vry_value = adc_read();
+  adc_select_input(1); 
+  uint16_t vrx_value = adc_read();
+
+  if(vrx_value>=3500 && !rec_pos){rec_pos=1; strcpy(escolhido,"MINUTO");}
+  else if(vrx_value <= 700 && rec_pos) {rec_pos=0; strcpy(escolhido,"HORA");}
+
+  definir_horario(vry_value);
+  if(relogio_ativo){ printf("Retornando\n");
+     gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
+     return;
+    }
+  //printf("rec_pos = %d\n",rec_pos);
+  sleep_us(1);
+  }
+}
+
+void ajustar_hora_callback(uint gpio, uint32_t events){
+  uint32_t current_time = to_us_since_boot(get_absolute_time());
+  // Verifica se passou tempo suficiente desde o último evento
+  if (current_time - last_time2 > 300000) // 300 ms de debouncing
+  {
+    last_time2=current_time;
+   if(gpio==BUTTON_B){
+     start = 1;
+     printf("Por favor...\n");
+     
+    }
+    else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
+      puts("JOYSTICK Click");
+      selected=1;
+      pressed=start=0;
+      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+     }
+    else{ //Botão A
+     start=0;
+    }
+  }
+}
+
+
+void ajustar_hora(){//A variável rec_pos vai definir se está selecionado a hora ou minuto
+  while(gpio_get(BUTTON_B)==0) sleep_us(10);
+  //sleep_ms(100);
+  char str_aux[6];
+  start=rec_pos=selected=0; //Vai ser usada pra determinar quando sair da 
+  gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
+  gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
+
+  ssd1306_fill(&ssd, 0);
+  sprintf(str_aux,"%d:%d",relog[0],relog[1]);
+  ssd1306_draw_string(&ssd,str_aux,50,30);
+  ssd1306_send_data(&ssd);
+  
+  while(1){
+  if(selected == 1){
+   selected=0;
+   return;
+  }
+  if(start){relogio_set(str_aux);}
+  sleep_us(1);
+ }
+}
+
 void draw_options(){
   ssd1306_fill(&ssd, 0);
   if(rec_pos != 0)
@@ -524,7 +663,7 @@ int main()
 
     limpar_matriz();
 
-
+    /*
     //A partir daqui começa meu projeto final
     ssd1306_draw_string(&ssd,"BEM VINDO",30,0);
     ssd1306_draw_string(&ssd,"AO RELOGIO",25,27);
@@ -537,6 +676,7 @@ int main()
     ssd1306_draw_string(&ssd,"O QUE",45,27);
     ssd1306_draw_string(&ssd,"DESEJA",40,54);
     ssd1306_send_data(&ssd);
+    */
     //ssd1306_fill(&ssd, 0);
     draw_options();
    // sleep_ms(3000);
@@ -556,6 +696,7 @@ int main()
      switch(selected){
       case 0: cronometro(); break;
       case 1: temporizador(); break;
+      case 2: ajustar_hora(); break;
     }
    inicio_display=rec_pos=selected=0;
    gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
