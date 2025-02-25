@@ -32,6 +32,7 @@
 uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
 bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1,no_relogio=0;
+bool relogio_executando=0;
 //uint8_t teste1,teste2;
 uint8_t rec_pos=0; //Vai de 0 a 2
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
@@ -528,7 +529,7 @@ void relogio_set(){
   definir_horario(vry_value);
   if(relogio_ativo){ printf("Ativado relogio\n");
      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
-     add_repeating_timer_ms(1000,atualizar_horario,NULL,&timer3);
+     if(!relogio_executando){add_repeating_timer_ms(1000,atualizar_horario,NULL,&timer3);relogio_executando=1;}
      selected=1;
      return;
     }
