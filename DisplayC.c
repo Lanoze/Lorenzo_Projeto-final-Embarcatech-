@@ -31,7 +31,7 @@
 
 uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
-bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1;
+bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1,no_relogio=0;
 //uint8_t teste1,teste2;
 uint8_t rec_pos=0; //Vai de 0 a 2
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
@@ -41,6 +41,7 @@ uint32_t debug_aux=0;//Variável pra ajudar na depuração
 struct repeating_timer timer1,timer2,timer3;
 char tempo[8];
 uint8_t relog[2]={0,0};//Guarda o valor das horas e minutos do relógio
+char str_aux[6];
 
 void draw_options();
 void cronometro();
@@ -449,7 +450,14 @@ bool atualizar_horario(){
     relog[0]=relog[1]=0;//Ao dar meia noite, zera o relógio
   }
  }
- return relogio_ativo;
+ puts("Relogio funcionando de boa");
+ if(no_relogio){
+  ssd1306_fill(&ssd, 0);
+  sprintf(str_aux,"%d:%d",relog[0],relog[1]);
+  ssd1306_draw_string(&ssd,str_aux,50,30);
+  ssd1306_send_data(&ssd);
+ }
+ return 1;
 }
 
 void definir_horario(uint16_t y){
@@ -488,7 +496,7 @@ void relogio_set_callback(uint gpio, uint32_t events){
   }
 }
 
-void relogio_set(char *str_aux){
+void relogio_set(){
   static char escolhido[7]="HORA";
   relogio_ativo=rec_pos=0;
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
@@ -518,8 +526,10 @@ void relogio_set(char *str_aux){
   else if(vrx_value <= 700 && rec_pos) {rec_pos=0; strcpy(escolhido,"HORA");}
 
   definir_horario(vry_value);
-  if(relogio_ativo){ printf("Retornando\n");
+  if(relogio_ativo){ printf("Ativado relogio\n");
      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
+     add_repeating_timer_ms(1000,atualizar_horario,NULL,&timer3);
+     selected=1;
      return;
     }
   //printf("rec_pos = %d\n",rec_pos);
@@ -553,8 +563,8 @@ void ajustar_hora_callback(uint gpio, uint32_t events){
 
 void ajustar_hora(){//A variável rec_pos vai definir se está selecionado a hora ou minuto
   while(gpio_get(BUTTON_B)==0) sleep_us(10);
+  no_relogio=1;
   //sleep_ms(100);
-  char str_aux[6];
   start=rec_pos=selected=0; //Vai ser usada pra determinar quando sair da 
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
@@ -566,10 +576,10 @@ void ajustar_hora(){//A variável rec_pos vai definir se está selecionado a hor
   
   while(1){
   if(selected == 1){
-   selected=0;
+   no_relogio=selected=0;
    return;
   }
-  if(start){relogio_set(str_aux);}
+  if(start){relogio_set();}
   sleep_us(1);
  }
 }
