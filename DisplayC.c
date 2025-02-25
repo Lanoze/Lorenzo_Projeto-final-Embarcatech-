@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #include "pico/stdlib.h"
 #include "hardware/i2c.h"
 #include "inc/ssd1306.h"
@@ -30,16 +29,14 @@
 #define JOYSTICK_BUTTON 22
 
 
-uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0,start_time;
-ssd1306_t ssd; // Inicializa a estrutura do display
-bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1,no_relogio=0;
+uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0;
+ssd1306_t ssd;
+bool relogio_ativo=0,pressed=0,start=0,no_menu=1,no_relogio=0;
 bool relogio_executando=0,ajustando_hora=0,alarme_ativo=0;
-//uint8_t teste1,teste2;
-uint8_t rec_pos=0; //Vai de 0 a 2
+uint8_t rec_pos=0;
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
 uint8_t selected=0; //0=Cronometro, 1=Temporizador, 2=Ajustar hora, 3=Alarme, 4 ou mais=Inválido
 uint8_t valor_exibido[6];//Valores exibidos no cronômetro
-uint32_t debug_aux=0;//Variável pra ajudar na depuração
 struct repeating_timer timer1,timer2,timer3;
 char tempo[8];
 uint8_t relog[2]={0,0};//Guarda o valor das horas e minutos do relógio
@@ -54,7 +51,7 @@ void temporizador_callback();
 void ajustar_hora_callback();
 void relogio_set();
 
-void alarmer_buzzer(){
+void alarme_buzzer(){
   ssd1306_fill(&ssd, 0);
   ssd1306_draw_string(&ssd,"APERTE B",30,25);
   ssd1306_send_data(&ssd);
@@ -65,7 +62,7 @@ void alarmer_buzzer(){
  pwm_set_gpio_level(BUZZER_A,0);
  sleep_us(900);
  }
- while(gpio_get(BUTTON_B) == 0) sleep_us(1);//Debounce
+ while(gpio_get(BUTTON_B) == 0) sleep_us(1);//Debounce, se não tiver ativa o alarme logo após desligá-lo
  pressed=0;
  //gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
   ssd1306_fill(&ssd, 0);
@@ -279,10 +276,9 @@ void selecionar_temporizador(uint16_t y){
        if(start){
        //add_repeating_timer_ms(100, timer_set, NULL, &timer1);
        timer_set();
-       }// else{
-
-        //limpar_matriz();
-       //}
+       }else{
+        limpar_matriz();
+       }
       }
       else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
         puts("JOYSTICK Click");
@@ -291,21 +287,24 @@ void selecionar_temporizador(uint16_t y){
         limpar_matriz();
         gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
        }
-      else{ //Botão A
+      else{ //Botão A, além de limpar a matriz e cancelar a contagem, muda o valor de rec_pos
        start=0;
+       rec_pos = rec_pos > 0? 0:100;
        limpar_matriz();
+       ssd1306_fill(&ssd, 0);
+       ssd1306_draw_string(&ssd,rec_pos==0?"0":"100",30,0);
+       ssd1306_send_data(&ssd);
       }
     }
   }
 
  bool timer_countdown(){
    uint32_t current_time = to_ms_since_boot(get_absolute_time()),i;
-   if(!rec_pos && !pressed){
-    //if(selected==1) return false;
+   if(!start){return false;}
+   if(!rec_pos /*&& !pressed*/){
     puts("Countdown");
     start=0; if(!no_menu)pressed=1; return false;
-  }
-   if(!start){return false;}
+  }//pressed é usado pra saber quando iniciar o buzzer
    else if(rec_pos>75){
      rec_pos--;
       ssd1306_fill(&ssd, 0);
@@ -387,7 +386,6 @@ void selecionar_temporizador(uint16_t y){
 
  //Seta o estado inicial da matriz de LEDs do temporizador
  void timer_set(){
-  //uint32_t current_time = to_ms_since_boot(get_absolute_time());
   if(rec_pos>75){
     uint8_t aux=rec_pos-75;
     uint8_t aux2 = set_one_led(0,5,0,aux);//verde
@@ -405,9 +403,6 @@ void selecionar_temporizador(uint16_t y){
   }
  //971 ms pra compensar o tempo gasto pela função
   add_repeating_timer_ms(971, timer_countdown, NULL, &timer2);
- // printf("Tempo da funcao: %d\n",current_time-time_teste);
- // time_teste=current_time;
-  
  }
 
 //Até 100 segundos
@@ -423,13 +418,12 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
   while(1){
   if(selected == 1){
    selected=0;
-   //gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
    return;
   }
 
   if(pressed){ puts("ENTROU");
      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &temporizador_callback);
-     alarmer_buzzer();
+     alarme_buzzer();
     }
   else gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
    adc_select_input(0);
@@ -576,7 +570,7 @@ void ajustar_hora_callback(uint gpio, uint32_t events){
 
 
 void ajustar_hora(){//A variável rec_pos vai definir se está selecionado a hora ou minuto
-  while(gpio_get(BUTTON_B)==0) sleep_us(10);
+  //while(gpio_get(BUTTON_B)==0) sleep_us(10);
   no_relogio=1;
   ajustando_hora=0;
   //sleep_ms(100);
