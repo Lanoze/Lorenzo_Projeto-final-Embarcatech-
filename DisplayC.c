@@ -22,6 +22,7 @@
 #define BLUE 12
 #define RED 13
 #define BUZZER_A 21
+#define BUZZER_B 10
 #define BUTTON_A 5
 #define BUTTON_B 6
 #define VRX_PIN 26   
@@ -32,7 +33,7 @@
 uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
 bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1,no_relogio=0;
-bool relogio_executando=0,ajustando_hora=0;
+bool relogio_executando=0,ajustando_hora=0,alarme_ativo=0;
 //uint8_t teste1,teste2;
 uint8_t rec_pos=0; //Vai de 0 a 2
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
@@ -441,7 +442,7 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
 }
 
 bool atualizar_horario(){
- if(!ajustando_hora) //Buga as coisas
+ if(!ajustando_hora) //Só atualiza o tempo se não estiver ajustando a hora
  {
  if(relog[1]<59) relog[1]++;
  else{
@@ -465,19 +466,26 @@ bool atualizar_horario(){
 }
 
 void definir_horario(uint16_t y){
+  static uint8_t rapido=200;
+  uint32_t current_time = to_ms_since_boot(get_absolute_time());
+  if(current_time-last_time4 >= rapido){
+  last_time4=current_time;
   if(y>=3500){
+   if(rapido > 30) rapido-=10;
     if(rec_pos==0 && relog[0]<23){
     relog[0]++;
    }else if(rec_pos==1 && relog[1]<59){
     relog[1]++;
    }
   }else if(y<=700){
+    if(rapido > 30) rapido-=10;
     if(rec_pos==0 && relog[0]>0){
       relog[0]--;
      }else if(rec_pos==1 && relog[1]>0){
       relog[1]--;
      }
-  }
+  } else rapido=200;
+ }
 }
 
 void relogio_set_callback(uint gpio, uint32_t events){
@@ -488,13 +496,14 @@ void relogio_set_callback(uint gpio, uint32_t events){
     last_time2=current_time;
    if(gpio==BUTTON_B){
      relogio_ativo = 1;
+     ajustando_hora=0;
      printf("Please...\n");
      
     }
     else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
       puts("JOYSTICK Click");
       selected=1;
-      pressed=start=0;
+      ajustando_hora=pressed=start=0;
       gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
      }
   }
@@ -514,7 +523,7 @@ void relogio_set(){
 
   while(1){
     if(selected == 1)
-      {start=0; ajustando_hora=0; return;}
+      {start=0; return;}
     
   ssd1306_fill(&ssd, 0);
   ssd1306_draw_string(&ssd,escolhido,50,50);
@@ -634,6 +643,95 @@ void comando_joystick(uint16_t y){
     }
   }
 }
+int64_t desligar_alarme(){
+  //puts("Terminando alarme");
+ pwm_set_gpio_level(BUZZER_B,0);
+ alarme_ativo=0;
+ puts("Fim do alarme");
+ return 0;
+}
+
+int64_t alarme_comum(){
+  puts("Iniciando alarme");
+
+ pwm_set_gpio_level(BUZZER_B,5000);
+ add_alarm_in_ms(2000,desligar_alarme,NULL,false);
+ return 0;
+}
+
+void meu_alarme_callback(uint gpio, uint32_t events){
+  uint32_t current_time = to_us_since_boot(get_absolute_time());
+  // Verifica se passou tempo suficiente desde o último evento
+  if (current_time - last_time2 > 300000) // 300 ms de debouncing
+  {
+    last_time2=current_time;
+   if(gpio==BUTTON_B && !alarme_ativo){
+     alarme_ativo = 1;
+     printf("Alarme definido\n");
+     add_alarm_in_ms(valor_exibido[0]*1000, alarme_comum, NULL, false);
+    }
+    else if(gpio == JOYSTICK_BUTTON){ //JOYSTICK_BUTTON
+      puts("JOYSTICK Click");
+      selected=1;
+      pressed=start=0;
+      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
+     }
+  }
+}
+
+void alarme_joystick(uint16_t y){
+  static uint8_t rapido=200;
+  uint16_t current_time = to_ms_since_boot(get_absolute_time());
+  if(current_time-last_time3>=rapido){
+    if(y>=3500){ last_time3=current_time;
+      if(valor_exibido[0] < 100) valor_exibido[0]++;
+
+      sprintf(str_aux,"%d",valor_exibido[0]);
+      ssd1306_fill(&ssd, 0);
+      ssd1306_draw_string(&ssd,str_aux,60,30);
+      ssd1306_send_data(&ssd);
+      if(rapido>30) rapido-=10;
+    }
+    else if(y<=700){ last_time3=current_time;
+      if(valor_exibido[0] > 1) valor_exibido[0]--;
+      sprintf(str_aux,"%d",valor_exibido[0]);
+      ssd1306_fill(&ssd, 0);
+      ssd1306_draw_string(&ssd,str_aux,60,30);
+      ssd1306_send_data(&ssd);
+      if(rapido>50) rapido-=10;
+  } else rapido=200;
+ }
+}
+
+void colocar_alarme(){
+  selected=0;
+  valor_exibido[0]=1;
+  sprintf(str_aux,"%d",valor_exibido[0]);
+  ssd1306_fill(&ssd, 0);
+  ssd1306_draw_string(&ssd,str_aux,60,30);
+  ssd1306_send_data(&ssd);
+  adc_select_input(0);
+  gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &meu_alarme_callback);
+  if(!alarme_ativo){
+    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &meu_alarme_callback);
+  while (1){
+    if(selected == 1){
+      selected=0;
+      return;
+     }
+     if(alarme_ativo){add_alarm_in_ms(valor_exibido[0]*1000, alarme_comum, NULL, false); return;}
+    uint16_t vry_value = adc_read();
+    alarme_joystick(vry_value);
+  }
+ }
+ else{
+  ssd1306_fill(&ssd, 0);
+  ssd1306_draw_string(&ssd,"ATIVO",45,30);
+  ssd1306_send_data(&ssd);
+  sleep_ms(800);
+  return;
+ }
+}
 
 int main()
 {
@@ -676,26 +774,10 @@ int main()
     gpio_pull_up(BUTTON_B);
 
     pwm_init_gpio(BUZZER_A, 4096);
+    pwm_init_gpio(BUZZER_B, 20000);
 
     limpar_matriz();
-
-    /*
-    //A partir daqui começa meu projeto final
-    ssd1306_draw_string(&ssd,"BEM VINDO",30,0);
-    ssd1306_draw_string(&ssd,"AO RELOGIO",25,27);
-    ssd1306_draw_string(&ssd,"BITDOGLAB!",25,54);
-    ssd1306_send_data(&ssd);
-    ssd1306_fill(&ssd, 0);
-    //sleep_ms(3000);
-
-    ssd1306_draw_string(&ssd,"SELECIONE",30,0);
-    ssd1306_draw_string(&ssd,"O QUE",45,27);
-    ssd1306_draw_string(&ssd,"DESEJA",40,54);
-    ssd1306_send_data(&ssd);
-    */
-    //ssd1306_fill(&ssd, 0);
     draw_options();
-   // sleep_ms(3000);
    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &interrupt);
   while (true)
   {
@@ -713,6 +795,7 @@ int main()
       case 0: cronometro(); break;
       case 1: temporizador(); break;
       case 2: ajustar_hora(); break;
+      default: colocar_alarme();
     }
    inicio_display=rec_pos=selected=0;
    gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, false, &interrupt);
