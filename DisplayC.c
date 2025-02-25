@@ -32,7 +32,7 @@
 uint32_t last_time=0,last_time2=0,last_time3=0,last_time4=0,time_teste=0,start_time;
 ssd1306_t ssd; // Inicializa a estrutura do display
 bool relogio_ativo=0,cor=1,pressed=0,start=0,no_menu=1,no_relogio=0;
-bool relogio_executando=0;
+bool relogio_executando=0,ajustando_hora=0;
 //uint8_t teste1,teste2;
 uint8_t rec_pos=0; //Vai de 0 a 2
 uint8_t inicio_display=0; //A partir de qual string vai desenhar em opt_list, só pode ser 0 ou 1 com as 4 opções
@@ -441,6 +441,8 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
 }
 
 bool atualizar_horario(){
+ if(!ajustando_hora) //Buga as coisas
+ {
  if(relog[1]<59) relog[1]++;
  else{
   if(relog[0]<23){
@@ -458,6 +460,7 @@ bool atualizar_horario(){
   ssd1306_draw_string(&ssd,str_aux,50,30);
   ssd1306_send_data(&ssd);
  }
+}
  return 1;
 }
 
@@ -500,6 +503,7 @@ void relogio_set_callback(uint gpio, uint32_t events){
 void relogio_set(){
   static char escolhido[7]="HORA";
   relogio_ativo=rec_pos=0;
+  ajustando_hora=1;
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &ajustar_hora_callback);
   //last_time3=to_us_since_boot(get_absolute_time());
@@ -510,7 +514,7 @@ void relogio_set(){
 
   while(1){
     if(selected == 1)
-      {start=0; return;}
+      {start=0; ajustando_hora=0; return;}
     
   ssd1306_fill(&ssd, 0);
   ssd1306_draw_string(&ssd,escolhido,50,50);
@@ -565,6 +569,7 @@ void ajustar_hora_callback(uint gpio, uint32_t events){
 void ajustar_hora(){//A variável rec_pos vai definir se está selecionado a hora ou minuto
   while(gpio_get(BUTTON_B)==0) sleep_us(10);
   no_relogio=1;
+  ajustando_hora=0;
   //sleep_ms(100);
   start=rec_pos=selected=0; //Vai ser usada pra determinar quando sair da 
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
