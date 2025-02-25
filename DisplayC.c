@@ -646,7 +646,7 @@ int64_t desligar_alarme(){
 int64_t alarme_comum(){
   puts("Iniciando alarme");
 
- pwm_set_gpio_level(BUZZER_B,4096);
+ pwm_set_gpio_level(BUZZER_B,15000);
  add_alarm_in_ms(2000,desligar_alarme,NULL,false);
  return 0;
 }
@@ -714,7 +714,7 @@ void colocar_alarme(){
  }
  else{
   ssd1306_fill(&ssd, 0);
-  ssd1306_draw_string(&ssd,"JA ESTA ATIVO",60,30);
+  ssd1306_draw_string(&ssd,"ATIVO",60,30);
   ssd1306_send_data(&ssd);
   sleep_ms(800);
   return;
@@ -762,7 +762,7 @@ int main()
     gpio_pull_up(BUTTON_B);
 
     pwm_init_gpio(BUZZER_A, 4096);
-    pwm_init_gpio(BUZZER_B, 4096);
+    pwm_init_gpio(BUZZER_B, 20000);
 
     limpar_matriz();
     draw_options();
