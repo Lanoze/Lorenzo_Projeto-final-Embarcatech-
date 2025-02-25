@@ -494,7 +494,7 @@ void relogio_set(char *str_aux){
   gpio_set_irq_enabled_with_callback(JOYSTICK_BUTTON, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
   gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, false, &ajustar_hora_callback);
   //last_time3=to_us_since_boot(get_absolute_time());
-  gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
+  gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &relogio_set_callback);
   ssd1306_draw_string(&ssd,escolhido,50,50);
   ssd1306_send_data(&ssd);
   //while(gpio_get(BUTTON_B)==0){sleep_us(10);}
