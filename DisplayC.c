@@ -646,7 +646,7 @@ int64_t desligar_alarme(){
 int64_t alarme_comum(){
   puts("Iniciando alarme");
 
- pwm_set_gpio_level(BUZZER_B,15000);
+ pwm_set_gpio_level(BUZZER_B,5000);
  add_alarm_in_ms(2000,desligar_alarme,NULL,false);
  return 0;
 }
@@ -657,7 +657,7 @@ void meu_alarme_callback(uint gpio, uint32_t events){
   if (current_time - last_time2 > 300000) // 300 ms de debouncing
   {
     last_time2=current_time;
-   if(gpio==BUTTON_B && !alarme_ativo){
+   if(gpio==BUTTON_B && !alarme_ativo && valor_exibido[0]!=0){
      alarme_ativo = 1;
      printf("Alarme definido\n");
      add_alarm_in_ms(valor_exibido[0]*1000, alarme_comum, NULL, false);
@@ -672,28 +672,32 @@ void meu_alarme_callback(uint gpio, uint32_t events){
 }
 
 void alarme_joystick(uint16_t y){
+  static uint8_t rapido=200;
   uint16_t current_time = to_ms_since_boot(get_absolute_time());
-  if(current_time-last_time>=100){
-    if(y>=3500){
+  if(current_time-last_time3>=rapido){
+    if(y>=3500){ last_time3=current_time;
       if(valor_exibido[0] < 100) valor_exibido[0]++;
 
       sprintf(str_aux,"%d",valor_exibido[0]);
       ssd1306_fill(&ssd, 0);
       ssd1306_draw_string(&ssd,str_aux,60,30);
       ssd1306_send_data(&ssd);
+      if(rapido>30) rapido-=10;
     }
-    else if(y<=700){
-      if(valor_exibido[0] > 0) valor_exibido[0]--;
+    else if(y<=700){ last_time3=current_time;
+      if(valor_exibido[0] > 1) valor_exibido[0]--;
       sprintf(str_aux,"%d",valor_exibido[0]);
       ssd1306_fill(&ssd, 0);
       ssd1306_draw_string(&ssd,str_aux,60,30);
       ssd1306_send_data(&ssd);
-  }
+      if(rapido>50) rapido-=10;
+  } else rapido=200;
  }
 }
 
 void colocar_alarme(){
-  selected=valor_exibido[0]=0;
+  selected=0;
+  valor_exibido[0]=1;
   sprintf(str_aux,"%d",valor_exibido[0]);
   ssd1306_fill(&ssd, 0);
   ssd1306_draw_string(&ssd,str_aux,60,30);
