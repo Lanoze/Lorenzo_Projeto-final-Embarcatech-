@@ -420,7 +420,7 @@ bool atualizar_horario(){
     relog[0]=relog[1]=0;//Ao dar meia noite, zera o relógio
   }
  }
- puts("Relogio funcionando de boa");
+ //puts("Relogio funcionando de boa");//Parece que buga o buzzer do temporizador
  if(no_relogio){
   ssd1306_fill(&ssd, 0);
   sprintf(str_aux,"%d:%d",relog[0],relog[1]);
