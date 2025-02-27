@@ -56,13 +56,11 @@ void alarme_buzzer(){
   ssd1306_fill(&ssd, 0);
   ssd1306_draw_string(&ssd,"APERTE B",30,25);
   ssd1306_send_data(&ssd);
-
-  while(gpio_get(BUTTON_B) != 0 && pressed==1){//Acabei usando PWM de uma forma estranha
- pwm_set_gpio_level(BUZZER_A,3000);
- sleep_us(900);
- pwm_set_gpio_level(BUZZER_A,0);
- sleep_us(900);
+  pwm_set_gpio_level(BUZZER_A,5000);
+  while(gpio_get(BUTTON_B) != 0 && pressed==1){
+ sleep_us(1);
  }
+ pwm_set_gpio_level(BUZZER_A,0);
  while(gpio_get(BUTTON_B) == 0) sleep_us(1);//Debounce, se não tiver ativa o alarme logo após desligá-lo
  pressed=0;
   ssd1306_fill(&ssd, 0);
@@ -398,11 +396,11 @@ void temporizador(){//A variável rec_pos vai definir o valor do temporizador
      alarme_buzzer();
     }
   else gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &temporizador_callback);
-   adc_select_input(0);
-   uint16_t vry_value = adc_read();
 
-   if(!start)
-   selecionar_temporizador(vry_value);
+   if(!start){
+   adc_select_input(0);
+   selecionar_temporizador(adc_read());
+   }
    sleep_us(1);
  }
 }
@@ -462,7 +460,7 @@ void relogio_set_callback(uint gpio, uint32_t events){
    if(gpio==BUTTON_B){
      relogio_ativo = 1;
      ajustando_hora=0;
-     printf("Please...\n");
+     printf("B CLick\n");
      
     }
     else if(gpio == JOYSTICK_BUTTON){
@@ -503,9 +501,9 @@ void relogio_set(){
   else if(vrx_value <= 700 && rec_pos) {rec_pos=0; strcpy(escolhido,"HORA");}
 
   definir_horario(vry_value);
-  if(relogio_ativo){ printf("Ativado relogio\n");
+  if(relogio_ativo){
      gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &ajustar_hora_callback);
-     if(!relogio_executando){add_repeating_timer_ms(1000,atualizar_horario,NULL,&timer3);relogio_executando=1;}
+     if(!relogio_executando){add_repeating_timer_ms(1000,atualizar_horario,NULL,&timer3);relogio_executando=1; printf("Ativado relogio\n");}
      selected=1;
      return;
     }
@@ -520,7 +518,7 @@ void ajustar_hora_callback(uint gpio, uint32_t events){
     last_time2=current_time;
    if(gpio==BUTTON_B){
      start = 1;
-     printf("Por favor...\n");
+     printf("B Click\n");
      
     }
     else if(gpio == JOYSTICK_BUTTON){
@@ -731,7 +729,7 @@ int main()
     gpio_set_dir(BUTTON_B, GPIO_IN);
     gpio_pull_up(BUTTON_B);
 
-    pwm_init_gpio(BUZZER_A, 4096);
+    pwm_set_clkdiv(pwm_init_gpio(BUZZER_A, 9999), 125);
     pwm_init_gpio(BUZZER_B, 20000);
 
     limpar_matriz();
@@ -741,9 +739,8 @@ int main()
   {
     adc_select_input(0);
    uint16_t vry_value = adc_read();
-   adc_select_input(1); 
-   uint16_t vrx_value = adc_read();
-   
+
+   //printf("Y = %d\n",vry_value);
    comando_joystick(vry_value);
    if(pressed){
      pressed=0;
