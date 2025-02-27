@@ -1,12 +1,14 @@
 # Instruções
-Mova o Joystick para movimentar o quadrado no display.
+Mova o joystick no menu inicial e aperte B para selecionar a opção que deseja
 
-O LED vermelho varia sua intensidade de acordo com a posição do joystick (Quanto mais distante do centro, em relação ao eixo X, maior)
+Cronômetro: Aperte B para iniciar ou pausar, o botão A zera o cronômetro
 
-O LED azul também tem a mesma variação, porém em relação ao eixo Y
+Temporizador: Use o joystick para escolher o valor, o botão A também alterna o valor entre 0 e 100, depois aperte o botão B, após o tempo se passar o Buzzer A tocará e precisará ser desativado
 
-O botão A desativa esses dois LEDs completamente, para reativar, basta apertar o botão A novamente
+Ajustar hora: Permite selecionar a hora, ela passará mesmo quando o usuário não estiver mais nessa tela, devido a questões de conveniência, o tempo passa a cada segundo em vez de a cada minuto
 
-O botão do Joystick altera o estado do LED verde e as bordas dos display
+Alarme: Adiciona um alarme em 2º plano que tocará no Buzzer B depois do número de segundos definidos, e desativará após tocar, não é possível colocar outro alarme quando já tem um ativo
 
-Vídeo mostrando o funcionamento na placa BitDogLab: https://drive.google.com/file/d/1xffPeI_B816B8MNsOmGO68fr5vKeyBuq/view?usp=sharing
+Para voltar ao menu inicial basta pressionar o botão do joystick em qualquer tela
+
+Vídeo do funcionamento: https://drive.google.com/file/d/1Bq8Kqk_1bQLmeukcwZNw0Cju4YL1v45t/view?usp=drive_link
